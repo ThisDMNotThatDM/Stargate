@@ -99,7 +99,7 @@ public class InitQTBThread implements Callable {
                 }
                 insertSql.append(")");
                 //拼接select语句
-                selectSql = new StringBuilder("select "+columnsSql.toString()+" from "+currentSchemaName+"."+currentTableName);
+                selectSql = new StringBuilder("select "+columnsSql.toString()+" from "+currentSchemaName+"."+currentTableName+" as DM");
                 TargetDB.closeAllExceptConnection();
                 LogUtils.recordINFOLog(this.threadName + "表结构信息获取完毕，开始去来源数据库获取当前表「" + currentTable + "」表数据总数。。。","QTB");
                 rs = SourceDB.getNewRs(SQLUtils.generateTableCountSqlByTableSchemaAndTableName(SourceDB.getDBName(), currentSchemaName, currentTableName));

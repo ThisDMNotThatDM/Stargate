@@ -3,20 +3,18 @@ package ink.qicq.utils;
 public class SQLUtils {
     public static String generateTableStructureSqlByTableSchemaAndTableName(String DBType, String schema, String name){
         String sql = null;
-        if("GBase8AMPP".equals(DBType)){
+        if("GBase8AMPP".equals(DBType) || "OushuDB".equals(DBType) || "Hologres".equals(DBType)){
             sql = "SELECT COLUMN_NAME,DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE UPPER(TABLE_SCHEMA)='" + schema + "' AND UPPER(TABLE_NAME)='" + name + "' ORDER BY ORDINAL_POSITION";
         }else if("GaussDB".equals(DBType)){
             sql = "SELECT COLUMN_NAME,DATA_TYPE FROM PG_CATALOG.MY_TAB_COLUMNS WHERE UPPER(SCHEMA)='" + schema + "' AND UPPER(TABLE_NAME)='" + name + "' ORDER BY COLUMN_ID";
         }else if("DM8".equals(DBType)){
             sql = "SELECT COLUMN_NAME,DATA_TYPE FROM ALL_TAB_COLUMNS WHERE UPPER(OWNER)='" + schema + "' AND UPPER(TABLE_NAME)='" + name + "' ORDER BY COLUMN_ID";
-        }else if("OushuDB".equals(DBType)){
-            sql = "SELECT COLUMN_NAME,DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE UPPER(TABLE_SCHEMA)='" + schema + "' AND UPPER(TABLE_NAME)='" + name + "' ORDER BY ORDINAL_POSITION";
         }
         return sql;
     }
     public static String generateTableCountSqlByTableSchemaAndTableName(String DBType, String schema, String name){
         String sql = null;
-        if("GBase8AMPP".equals(DBType) || "GaussDB".equals(DBType) || "DM8".equals(DBType) || "OushuDB".equals(DBType)){
+        if("GBase8AMPP".equals(DBType) || "GaussDB".equals(DBType) || "DM8".equals(DBType) || "OushuDB".equals(DBType) || "Hologres".equals(DBType)){
             sql = "SELECT COUNT(*) AS CT FROM "+schema+"."+name;
         }
         return sql;
@@ -32,19 +30,22 @@ public class SQLUtils {
         }else if("OushuDB".equals(DBType)){
             //这里可能会有问题，当OushuDB采用AO/列存/ORC表时，数仓大表格式appendonly=true，存储是按列/批量追加的，不再是传统的块+行结构，会为了写入性能牺牲了ctid等物理定位能力，固定(0,0)不再代表真实物理地址。
             sql = oriSql+" ORDER BY GP_SEGMENT_ID,CTID LIMIT "+(pageNumber*pageSize)+","+pageSize;
+        }else if("Hologres".equals(DBType)){
+            //这里的DM是表的别名，oriSql给过来就是select * from schema.table as DM
+            sql = oriSql+" ORDER BY HG_SHARD_ID,CAST(ROW_TO_JSON(DM) AS TEXT)";
         }
         return sql;
     }
     public static String generateTableDeleteSqlByTableSchemaAndTableName(String DBType, String schema, String name){
         String sql = null;
-        if("GBase8AMPP".equals(DBType) || "GaussDB".equals(DBType) || "DM8".equals(DBType) || "OushuDB".equals(DBType)){
+        if("GBase8AMPP".equals(DBType) || "GaussDB".equals(DBType) || "DM8".equals(DBType) || "OushuDB".equals(DBType) || "Hologres".equals(DBType)){
             sql = "DELETE FROM "+schema+"."+name;
         }
         return sql;
     }
     public static String generateTableTruncateSqlByTableSchemaAndTableName(String DBType, String schema, String name){
         String sql = null;
-        if("GBase8AMPP".equals(DBType) || "GaussDB".equals(DBType) || "DM8".equals(DBType) || "OushuDB".equals(DBType)){
+        if("GBase8AMPP".equals(DBType) || "GaussDB".equals(DBType) || "DM8".equals(DBType) || "OushuDB".equals(DBType) || "Hologres".equals(DBType)){
             sql = "TRUNCATE TABLE "+schema+"."+name;
         }
         return sql;
@@ -83,14 +84,13 @@ public class SQLUtils {
 
     public static String generateAllTableListSqlByTableSchema(String DBType, String schema){
         String sql = null;
-        if("GBase8AMPP".equals(DBType)){
+        if("GBase8AMPP".equals(DBType) || "OushuDB".equals(DBType) || "Hologres".equals(DBType)){
             sql = "SELECT TABLE_NAME AS TABLE_FULL_NAME FROM INFORMATION_SCHEMA.TABLES WHERE UPPER(TABLE_SCHEMA)=UPPER('" + schema + "') AND UPPER(TABLE_TYPE)=UPPER('BASE TABLE')";
         }else if("GaussDB".equals(DBType)){
+            //GaussDB这里特殊，别人的TABLE_FULL_NAME仅仅是TABLE_NAME，但是这里的TABLE_FULL_NAME是schema.tablename，为了后续需要。
             sql = "SELECT SCHEMANAME||'.'||TABLENAME AS TABLE_FULL_NAME FROM PG_CATALOG.PG_TABLES WHERE UPPER(SCHEMANAME)=UPPER('" + schema + "')";
         }else if("DM8".equals(DBType)){
             sql = "SELECT TABLE_NAME AS TABLE_FULL_NAME FROM SYS.ALL_TABLES WHERE UPPER(OWNER)=UPPER('" + schema + "')";
-        }else if("OushuDB".equals(DBType)){
-            sql = "SELECT TABLE_NAME AS TABLE_FULL_NAME FROM INFORMATION_SCHEMA.TABLES WHERE UPPER(TABLE_SCHEMA)=UPPER('" + schema + "') AND UPPER(TABLE_TYPE)=UPPER('BASE TABLE')";
         }
         return sql;
     }
@@ -100,11 +100,13 @@ public class SQLUtils {
             sql = "SHOW CREATE TABLE " + schema + "." + name;
         }else if("GaussDB".equals(DBType)){
             //GaussDB的name其实已经时schema.tablename了
-            sql = "SELECT PG_GET_TABLEDEF('" +  name + "')";
+            sql = "SELECT PG_GET_TABLEDEF('" +  name + "') AS TABLEDDL";
         }else if("DM8".equals(DBType)){
             sql = "SELECT LISTAGG(TABLEDDL,CHAR(10))||CHAR(10) AS TABLEDDL FROM (SELECT DBMS_METADATA.GET_DDL('TABLE', '" +  name + "', '" + schema + "') AS TABLEDDL FROM DUAL UNION ALL SELECT 'COMMENT ON TABLE \"' || OWNER || '\".\"' || TABLE_NAME ||    '\" IS ''' || REPLACE(COMMENTS, '''', '''''') || ''';' AS TABLEDDL FROM ALL_TAB_COMMENTS WHERE OWNER = '" + schema + "' AND TABLE_NAME = '" +  name + "' AND COMMENTS IS NOT NULL UNION ALL SELECT TABLEDDL FROM (SELECT 'COMMENT ON COLUMN \"' || OWNER || '\".\"' || TABLE_NAME || '\".\"' || COLUMN_NAME || '\" IS ''' || REPLACE(COMMENTS, '''', '''''') || ''';' AS TABLEDDL FROM ALL_COL_COMMENTS WHERE OWNER = '" + schema + "' AND TABLE_NAME = '" +  name + "' AND COMMENTS IS NOT NULL ORDER BY COLUMN_NAME))";
         }else if("OushuDB".equals(DBType)){
             sql = "SELECT SHOW_CREATETABLE('" + schema + "." + name + "') AS TABLEDDL";
+        }else if("Hologres".equals(DBType)){
+            sql = "SELECT HG_DUMP_SCRIPT('" + schema + "." + name + "') AS TABLEDDL";
         }
         return sql;
     }
@@ -115,12 +117,12 @@ public class SQLUtils {
         }else if("GaussDB".equals(DBType)){
             sql = "SELECT OBJECT_ID||'$D$M$'||OBJECT_NAME AS FULL_FUNCTION_NAME FROM MY_OBJECTS " +
                     "WHERE OBJECT_NAME IN ( " +
-                    "SELECT PRONAME FROM PG_PROC WHERE PRONAMESPACE IN ( " +
-                    "SELECT NAMESPACE FROM MY_OBJECTS WHERE OBJECT_NAME IN ( " +
-                    "SELECT TABLENAME FROM PG_CATALOG.PG_TABLES WHERE UPPER(SCHEMANAME)=UPPER('" + schema + "') LIMIT 1 " +
-                    ") " +
-                    "AND UPPER(OBJECT_TYPE) = 'TABLE' " +
-                    ") " +
+                        "SELECT PRONAME FROM PG_PROC WHERE PRONAMESPACE IN ( " +
+                            "SELECT NAMESPACE FROM MY_OBJECTS WHERE OBJECT_NAME IN ( " +
+                                "SELECT TABLENAME FROM PG_CATALOG.PG_TABLES WHERE UPPER(SCHEMANAME)=UPPER('" + schema + "') LIMIT 1 " +
+                            ") " +
+                            "AND UPPER(OBJECT_TYPE) = 'TABLE' " +
+                        ") " +
                     ") " +
                     "AND UPPER(OBJECT_TYPE)='FUNCTION'";
         }else if("DM8".equals(DBType)){
@@ -128,6 +130,13 @@ public class SQLUtils {
         }else if("OushuDB".equals(DBType)){
             //OushuDB比较特殊，他不分函数和存储过程，都叫函数，所以这里既包括函数也包括存储过存，后续存储过从那里永远都是空。
             sql = "SELECT ROUTINE_NAME AS FULL_FUNCTION_NAME FROM INFORMATION_SCHEMA.ROUTINES WHERE UPPER(ROUTINE_SCHEMA)=UPPER('" + schema + "') AND UPPER(ROUTINE_TYPE)=UPPER('FUNCTION')";
+        }else if("Hologres".equals(DBType)){
+            sql = "SELECT P.OID||'$D$M$'||P.PRONAME AS FULL_FUNCTION_NAME " +
+                    "FROM PG_CATALOG.PG_PROC P " +
+                    "JOIN PG_CATALOG.PG_NAMESPACE N " +
+                    "ON N.OID = P.PRONAMESPACE " +
+                    "WHERE UPPER(N.NSPNAME) = UPPER('" + schema + "') " +
+                    "AND UPPER(P.PROKIND) = UPPER('F')";
         }
         return sql;
     }
@@ -135,11 +144,12 @@ public class SQLUtils {
         String sql = null;
         if("GBase8AMPP".equals(DBType)){
             sql = "SHOW CREATE FUNCTION " + schema + "." + name;
-        }else if("GaussDB".equals(DBType)){
+        }else if("GaussDB".equals(DBType) || "Hologres".equals(DBType)){
             //GaussDB获取函数DDL无法通过名字直接获得，需要先根据函数名字获取OBJECT_ID，然后通过OBJECT_ID再获取DDL，name字段目前是【OBJECT_ID$D$M$函数名字】的格式。
-            sql = "SELECT PG_GET_FUNCTIONDEF(" + name.split("\\$D\\$M\\$")[0] + ")";
+            //Hologres亦是如此。
+            sql = "SELECT PG_GET_FUNCTIONDEF(" + name.split("\\$D\\$M\\$")[0] + ") AS FUNCDDL";
         }else if("DM8".equals(DBType)){
-            sql = "SELECT DBMS_METADATA.GET_DDL('FUNCTION', '" + name + "', '" + schema + "') AS FUNCDDL  FROM DUAL";
+            sql = "SELECT DBMS_METADATA.GET_DDL('FUNCTION', '" + name + "', '" + schema + "') AS FUNCDDL";
         }else if("OushuDB".equals(DBType)){
             //OushuDB比较特殊，阉割了很多底层函数，至今没找到生成完整函数、存过DDL的方法，临时用一个阉割版的内容替代。
             sql = "SELECT A.PROSRC AS FUNCDDL FROM PG_CATALOG.PG_PROC A INNER JOIN PG_CATALOG.PG_NAMESPACE B ON A.PRONAMESPACE = B.OID WHERE UPPER(B.NSPNAME)='" + schema + "' AND UPPER(A.PRONAME) ='" + name + "'";
@@ -153,12 +163,12 @@ public class SQLUtils {
         }else if("GaussDB".equals(DBType)){
             sql = "SELECT OBJECT_ID||'$D$M$'||OBJECT_NAME AS FULL_PROCEDURE_NAME FROM MY_OBJECTS " +
                     "WHERE OBJECT_NAME IN ( " +
-                    "SELECT PRONAME FROM PG_PROC WHERE PRONAMESPACE IN ( " +
-                    "SELECT NAMESPACE FROM MY_OBJECTS WHERE OBJECT_NAME IN ( " +
-                    "SELECT TABLENAME FROM PG_CATALOG.PG_TABLES WHERE UPPER(SCHEMANAME)=UPPER('" + schema + "') LIMIT 1 " +
-                    ") " +
-                    "AND UPPER(OBJECT_TYPE) = 'TABLE' " +
-                    ") " +
+                        "SELECT PRONAME FROM PG_PROC WHERE PRONAMESPACE IN ( " +
+                            "SELECT NAMESPACE FROM MY_OBJECTS WHERE OBJECT_NAME IN ( " +
+                                "SELECT TABLENAME FROM PG_CATALOG.PG_TABLES WHERE UPPER(SCHEMANAME)=UPPER('" + schema + "') LIMIT 1 " +
+                            ") " +
+                            "AND UPPER(OBJECT_TYPE) = 'TABLE' " +
+                        ") " +
                     ") " +
                     "AND UPPER(OBJECT_TYPE)='PROCEDURE'";
         }else if("DM8".equals(DBType)){
@@ -166,6 +176,13 @@ public class SQLUtils {
         }else if("OushuDB".equals(DBType)){
             //OushuDB比较特殊，他不分函数和存储过程，都叫函数，这里永远也查不出来东西，存储过程都在函数那里处理好了。
             sql = "SELECT ROUTINE_NAME AS FULL_PROCEDURE_NAME FROM INFORMATION_SCHEMA.ROUTINES WHERE UPPER(ROUTINE_SCHEMA)=UPPER('" + schema + "') AND UPPER(ROUTINE_TYPE)=UPPER('PROCEDURE')";
+        }else if("Hologres".equals(DBType)){
+            sql = "SELECT P.OID||'$D$M$'||P.PRONAME AS FULL_PROCEDURE_NAME " +
+                    "FROM PG_CATALOG.PG_PROC P " +
+                    "JOIN PG_CATALOG.PG_NAMESPACE N " +
+                    "ON N.OID = P.PRONAMESPACE " +
+                    "WHERE UPPER(N.NSPNAME) = UPPER('" + schema + "') " +
+                    "AND UPPER(P.PROKIND) = UPPER('P')";
         }
         return sql;
     }
@@ -173,12 +190,13 @@ public class SQLUtils {
         String sql = null;
         if("GBase8AMPP".equals(DBType)){
             sql = "SHOW CREATE PROCEDURE " + schema + "." + name;
-        }else if("GaussDB".equals(DBType)){
+        }else if("GaussDB".equals(DBType) || "Hologres".equals(DBType)){
             //GaussDB获取存过DDL无法通过名字直接获得，需要先根据存过名字获取OBJECT_ID，然后通过OBJECT_ID再获取DDL，name字段目前是【OBJECT_ID$D$M$存过名字】的格式。
             //GaussDB，查函数查存过，都是这一个，不是写错了。
-            sql = "SELECT PG_GET_FUNCTIONDEF(" + name.split("\\$D\\$M\\$")[0] + ")";
+            //Hologres亦是如此。
+            sql = "SELECT PG_GET_FUNCTIONDEF(" + name.split("\\$D\\$M\\$")[0] + ") AS PROCDDL";
         }else if("DM8".equals(DBType)){
-            sql = "SELECT DBMS_METADATA.GET_DDL('PROCEDURE', '" + name + "', '" + schema + "') AS PROCDDL  FROM DUAL";
+            sql = "SELECT DBMS_METADATA.GET_DDL('PROCEDURE', '" + name + "', '" + schema + "') AS PROCDDL";
         }else if("OushuDB".equals(DBType)){
             //OushuDB比较特殊，他不分函数和存储过程，都叫函数，这里永远也查不出来东西，存储过程都在函数那里处理好了。
             sql = "SELECT A.PROSRC AS PROCDDL FROM PG_CATALOG.PG_PROC A INNER JOIN PG_CATALOG.PG_NAMESPACE B ON A.PRONAMESPACE = B.OID WHERE UPPER(B.NSPNAME)='" + schema + "' AND UPPER(A.PRONAME) ='" + name + "'";
@@ -187,14 +205,12 @@ public class SQLUtils {
     }
     public static String generateAllViewListSqlByTableSchema(String DBType, String schema){
         String sql = null;
-        if("GBase8AMPP".equals(DBType)){
+        if("GBase8AMPP".equals(DBType) || "OushuDB".equals(DBType) || "Hologres".equals(DBType)){
             sql = "SELECT TABLE_NAME AS VIEW_FULL_NAME FROM INFORMATION_SCHEMA.VIEWS WHERE UPPER(TABLE_SCHEMA)=UPPER('" + schema + "')";
         }else if("GaussDB".equals(DBType)){
             sql = "SELECT SCHEMANAME||'.'||VIEWNAME AS VIEW_FULL_NAME FROM PG_CATALOG.PG_VIEWS WHERE UPPER(SCHEMANAME)=UPPER('" + schema + "')";
         }else if("DM8".equals(DBType)){
             sql = "SELECT VIEW_NAME AS VIEW_FULL_NAME FROM SYS.ALL_VIEWS WHERE UPPER(OWNER)=UPPER('" + schema + "')";
-        }else if("OushuDB".equals(DBType)){
-            sql = "SELECT TABLE_NAME AS VIEW_FULL_NAME FROM INFORMATION_SCHEMA.VIEWS WHERE UPPER(TABLE_SCHEMA)=UPPER('" + schema + "')";
         }
         return sql;
     }
@@ -204,11 +220,13 @@ public class SQLUtils {
             sql = "SHOW CREATE VIEW " + schema + "." + name;
         }else if("GaussDB".equals(DBType)){
             //GaussDB的name其实已经时schema.tablename了
-            sql = "SELECT PG_GET_VIEWDEF('" + name + "')";
+            sql = "SELECT PG_GET_VIEWDEF('" + name + "') AS VIEWDDL";
         }else if("DM8".equals(DBType)){
-            sql = "SELECT DBMS_METADATA.GET_DDL('VIEW', '" + name + "', '" + schema + "')||CHAR(10) AS VIEWDDL  FROM DUAL";
+            sql = "SELECT DBMS_METADATA.GET_DDL('VIEW', '" + name + "', '" + schema + "')||CHAR(10) AS VIEWDDL";
         }else if("OushuDB".equals(DBType)){
             sql = "SELECT PG_GET_VIEWDEF('" + schema + "." + name + "') AS VIEWDDL";
+        }else if("Hologres".equals(DBType)){
+            sql = "SELECT HG_DUMP_SCRIPT('" + schema + "." + name + "') AS VIEWDDL";
         }
         return sql;
     }

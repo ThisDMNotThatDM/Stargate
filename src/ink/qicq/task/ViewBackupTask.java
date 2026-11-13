@@ -26,7 +26,7 @@ public class ViewBackupTask extends BackupTask{
 
     @Override
     public String getObjListColumnName() {
-        if("GBase8AMPP".equals(super.dbUtils.getDBName()) || "GaussDB".equals(super.dbUtils.getDBName()) || "DM8".equals(super.dbUtils.getDBName()) || "OushuDB".equals(super.dbUtils.getDBName())){
+        if("GBase8AMPP".equals(super.dbUtils.getDBName()) || "GaussDB".equals(super.dbUtils.getDBName()) || "DM8".equals(super.dbUtils.getDBName()) || "OushuDB".equals(super.dbUtils.getDBName()) || "Hologres".equals(super.dbUtils.getDBName())){
             return "VIEW_FULL_NAME";
         }
         return "ERROR";
@@ -36,9 +36,7 @@ public class ViewBackupTask extends BackupTask{
     public String getSqlColumnName() {
         if("GBase8AMPP".equals(super.dbUtils.getDBName())){
             return "CREATE VIEW";
-        }else if("GaussDB".equals(super.dbUtils.getDBName())){
-            return "PG_GET_VIEWDEF";
-        }else if("DM8".equals(super.dbUtils.getDBName()) || "OushuDB".equals(super.dbUtils.getDBName())){
+        }else if("GaussDB".equals(super.dbUtils.getDBName()) || "DM8".equals(super.dbUtils.getDBName()) || "OushuDB".equals(super.dbUtils.getDBName()) || "Hologres".equals(super.dbUtils.getDBName())){
             return "VIEWDDL";
         }
         return "ERROR";
@@ -73,6 +71,8 @@ public class ViewBackupTask extends BackupTask{
             return sql;
         }else if("OushuDB".equals(super.dbUtils.getDBName())){
             return "DROP VIEW IF EXISTS "+tableName+";"+"\n"+"CREATE VIEW "+tableName+" AS "+sql;
+        }else if("Hologres".equals(super.dbUtils.getDBName())){
+            return sql;
         }
         return sql;
     }

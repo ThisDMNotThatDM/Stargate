@@ -22,7 +22,7 @@ public class FunctionBackupTask extends BackupTask{
 
     @Override
     public String getObjListColumnName() {
-        if("GBase8AMPP".equals(super.dbUtils.getDBName()) || "GaussDB".equals(super.dbUtils.getDBName()) || "DM8".equals(super.dbUtils.getDBName()) || "OushuDB".equals(super.dbUtils.getDBName())){
+        if("GBase8AMPP".equals(super.dbUtils.getDBName()) || "GaussDB".equals(super.dbUtils.getDBName()) || "DM8".equals(super.dbUtils.getDBName()) || "OushuDB".equals(super.dbUtils.getDBName()) || "Hologres".equals(super.dbUtils.getDBName())){
             return "FULL_FUNCTION_NAME";
         }
         return "ERROR";
@@ -32,9 +32,7 @@ public class FunctionBackupTask extends BackupTask{
     public String getSqlColumnName() {
         if("GBase8AMPP".equals(super.dbUtils.getDBName())){
             return "CREATE FUNCTION";
-        }else if("GaussDB".equals(super.dbUtils.getDBName())){
-            return "PG_GET_FUNCTIONDEF";
-        }else if("DM8".equals(super.dbUtils.getDBName()) || "OushuDB".equals(super.dbUtils.getDBName())){
+        }else if("GaussDB".equals(super.dbUtils.getDBName()) || "DM8".equals(super.dbUtils.getDBName()) || "OushuDB".equals(super.dbUtils.getDBName()) || "Hologres".equals(super.dbUtils.getDBName())){
             return "FUNCDDL";
         }
         return "ERROR";
@@ -63,6 +61,8 @@ public class FunctionBackupTask extends BackupTask{
             //OushuDB实在是太烂了。。。
             String tmpSql = "-- 这个烂库我没找到怎么直接生成DDL，目前函数和存储过程都只有里面的内容，最外面的定义以及参数目前获取不到，临时使用后续找到办法了再改吧。";
             return tmpSql+"\n"+sql;
+        }else if("Hologres".equals(super.dbUtils.getDBName())){
+            return sql;
         }
         return sql;
     }

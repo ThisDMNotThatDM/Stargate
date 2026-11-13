@@ -92,7 +92,7 @@ public class DataBackupTask extends BackupTask{
                 //拼接insert预处理语句
                 insertSql = new StringBuilder("insert into "+backupUser+"."+currentTableName+"("+columnsSql.toString()+") values(");
                 //拼接select语句
-                selectSql = new StringBuilder("select "+columnsSql.toString()+" from "+backupUser+"."+currentTableName);
+                selectSql = new StringBuilder("select "+columnsSql.toString()+" from "+backupUser+"."+currentTableName+" as DM");
                 resultSet = super.dbUtils.getNewRs(SQLUtils.generateTableCountSqlByTableSchemaAndTableName(super.dbUtils.getDBName(), backupUser, currentTableName));
                 while (resultSet.next()) {
                     totalCount = resultSet.getInt(1);
